@@ -1,4 +1,4 @@
-package com.cesde.parkingFlow.dto;
+package com.cesde.parkingFlow.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

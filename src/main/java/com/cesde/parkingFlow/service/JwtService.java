@@ -1,5 +1,6 @@
 package com.cesde.parkingFlow.service;
 
+
 import com.cesde.parkingFlow.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -24,7 +25,12 @@ public class JwtService {
 
     //Generar access token para usuario(incluye claims como email y roles)
     public String generateToken(User user) {
-        return Jwts.builder()
+        String accessToken = Jwts.builder()
+        		
+        		    .header()   
+    		        .add("typ", "JWT")
+    		        .and()
+    		        
                 .subject(user.getId().toString())
                 .claim("email", user.getEmail())
                 .claim("roles", List.of("ROLE_" + user.getRol().name()))
@@ -32,17 +38,27 @@ public class JwtService {
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(Keys.hmacShaKeyFor(secretKey.getBytes()), Jwts.SIG.HS256)
                 .compact();
+        
+        return accessToken;
     }
 
     //Generar refresh token para un usuario
     public String generateRefreshToken(User user) {
-        return Jwts.builder()
+        String refreshToken = Jwts.builder()
+        		
+        		    .header()   
+        		    .add("typ", "JWT")
+        		    .and()
+        		
                 .subject(user.getId().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpirationMs))
                 .signWith(Keys.hmacShaKeyFor(secretKey.getBytes()), Jwts.SIG.HS256)
                 .compact();
+        
+        return refreshToken;
     }
+    
 
     //Validar token recibido en una peticion
     public Claims validateToken(String token) {

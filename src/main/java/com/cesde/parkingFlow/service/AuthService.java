@@ -2,32 +2,47 @@ package com.cesde.parkingFlow.service;
 
 import com.cesde.parkingFlow.dto.LoginRequestDto;
 import com.cesde.parkingFlow.dto.RegisterRequestDto;
-import com.cesde.parkingFlow.dto.TokenResponseDto;
+import com.cesde.parkingFlow.dto.response.TokenResponseDto;
 import com.cesde.parkingFlow.entity.User;
 import com.cesde.parkingFlow.enums.Rol;
-import io.jsonwebtoken.Claims;
+import com.cesde.parkingFlow.exception.custom.*;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import com.cesde.parkingFlow.repository.UserRepository;
 
-//Servicio de autenticacion(Registro, login y refresh de tokens)
+
+
 @Service
-@RequiredArgsConstructor//Inyeccion de dependencias
+@RequiredArgsConstructor
 public class AuthService {
     private final UserRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     //Registra un nuevo usuario en el sistema
     public TokenResponseDto register(RegisterRequestDto request) {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email ya registrado");
+            throw new RegistroInvalido("Email ya registrado");
+        }
+        
+        if (usuarioRepository.existsByDocument(request.getDocument())) {
+        	throw new RegistroInvalido("Documento ya registrado");
+        }
+        
+        if (usuarioRepository.existsByPhone(request.getPhone())) {
+        	throw new RegistroInvalido("Telefono ya registrado");
         }
 
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
+                .document(request.getDocument())
+                .phone(request.getPhone())
+                .name(request.getName())
+                .lastName(request.getLastName())
                 .rol(Rol.ABONADO) // rol por defecto
                 .activo(true)
                 .build();
@@ -42,27 +57,27 @@ public class AuthService {
 
     //Inicia sesion y devuelve tokens
     public TokenResponseDto login(LoginRequestDto request) {
-        User user = usuarioRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        User user = findByEmail(request.getEmail());
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Credenciales inválidas");
+            throw new Unauthorized("Credenciales inválidas");
         }
 
+        String refreshToken = refreshTokenService.createRefreshToken(user);
+        
         return new TokenResponseDto(
                 jwtService.generateToken(user),
-                jwtService.generateRefreshToken(user)
+                refreshToken 
         );
     }
 
-    //Refresca el access token usando un refresh token valido
-    public TokenResponseDto refresh(String refreshToken) {
-        Claims claims = jwtService.validateToken(refreshToken);
-        Long userId = Long.parseLong(claims.getSubject());
-
-        User user = usuarioRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        return new TokenResponseDto(jwtService.generateToken(user), refreshToken);
+  
+    
+    public User findByEmail(String email) {
+    	User user = usuarioRepository.findByEmail(email).
+    			orElseThrow(() -> new NotFound("Usuario no encontrado"));
+    	
+    	return user;
+    	
     }
 }

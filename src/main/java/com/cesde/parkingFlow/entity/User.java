@@ -2,6 +2,7 @@ package com.cesde.parkingFlow.entity;
 import java.time.LocalDateTime;
 import com.cesde.parkingFlow.enums.Rol;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -9,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -24,6 +26,7 @@ import lombok.*;
 @Table(name = "users")
 @Builder
 public class User {
+	
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -43,13 +46,19 @@ public class User {
 
     @Column(nullable = false)
     private String name;
+    
+    @Column(nullable = false)
+    private String lastName;
 
     @Enumerated(EnumType.STRING)
     private Rol rol;
 
     @Column(nullable = false)
-    private boolean activo = true;
+    private boolean activo;
 
+    @OneToOne(mappedBy =  "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private RefreshToken refreshToken;
+    
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
