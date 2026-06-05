@@ -1,6 +1,7 @@
 package com.cesde.parkingFlow.service;
 
 import com.cesde.parkingFlow.dto.VehiculoRequestDTO;
+import com.cesde.parkingFlow.dto.VehiculoUpdateDTO;
 import com.cesde.parkingFlow.dto.response.VehiculoResponseDTO;
 import com.cesde.parkingFlow.entity.User;
 import com.cesde.parkingFlow.entity.Vehiculo;
@@ -12,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,37 +24,24 @@ public class VehiculoService {
     private final VehiculoRepository vehiculoRepository;
     private final UserRepository userRepository;
 
-    // RegEx formato Colombiano: 
-    // Opción 1 (Carro): 3 letras seguidas de 3 números (ej. ABC123)
-    // Opción 2 (Moto): 3 letras, 2 números y una letra al final (ej. ABC12A)
     private static final String RE_PLACA_COLOMBIA = "^[A-Z]{3}\\d{3}$|^[A-Z]{3}\\d{2}[A-Z]$";
     private static final Pattern PATTERN_PLACA = Pattern.compile(RE_PLACA_COLOMBIA);
 
     @Transactional
     public VehiculoResponseDTO registrarVehiculo(VehiculoRequestDTO request, String userEmail) {
-        // 1. Obtener el usuario autenticado desde el email extraído del token
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new NotFound("Usuario no encontrado"));
-
-        // 2. Normalizar placa a mayúsculas y quitar espacios en blanco laterales
+        User user = getUserByEmail(userEmail);
         String placaFormateada = request.getPlaca().trim().toUpperCase();
 
-        // 3. Validar formato de placa colombiana
         if (!PATTERN_PLACA.matcher(placaFormateada).matches()) {
             throw new RegistroInvalido("El formato de la placa no es válido para Colombia (Ej: AAA123 o AAA12A)");
         }
-
-        // 4. Validar que la placa sea única en el sistema
         if (vehiculoRepository.existsByPlaca(placaFormateada)) {
             throw new RegistroInvalido("Esta placa ya se encuentra registrada");
         }
-
-        // 5. Validar máximo 2 vehículos por abonado
         if (vehiculoRepository.countByUser(user) >= 2) {
             throw new RegistroInvalido("Límite excedido: Un abonado solo puede registrar un máximo de 2 vehículos");
         }
 
-        // 6. Construir Entidad
         Vehiculo vehiculo = Vehiculo.builder()
                 .placa(placaFormateada)
                 .tipoVehiculo(request.getTipoVehiculo())
@@ -61,17 +51,72 @@ public class VehiculoService {
                 .user(user)
                 .build();
 
-        Vehiculo guardado = vehiculoRepository.save(vehiculo);
+        return convertToResponseDTO(vehiculoRepository.save(vehiculo));
+    }
 
-        // 7. Retornar DTO de Respuesta
+    // --- NUEVOS MÉTODOS DE LA HISTORIA DE USUARIO 8 ---
+
+    @Transactional(readOnly = true)
+    public List<VehiculoResponseDTO> listarMisVehiculos(String userEmail) {
+        User user = getUserByEmail(userEmail);
+        return vehiculoRepository.findByUser(user).stream()
+                .map(this::convertToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public VehiculoResponseDTO actualizarVehiculo(Long id, VehiculoUpdateDTO request, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        
+        // Al buscar por ID y Usuario mitigamos que intente editar un vehículo ajeno
+        Vehiculo vehiculo = vehiculoRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new NotFound("Vehículo no encontrado o no pertenece a su cuenta de abonado"));
+
+        // Se modifican todos los campos solicitados excepto la placa
+        vehiculo.setTipoVehiculo(request.getTipoVehiculo());
+        vehiculo.setMarca(request.getMarca());
+        vehiculo.setModelo(request.getModelo());
+        vehiculo.setColor(request.getColor());
+
+        return convertToResponseDTO(vehiculoRepository.save(vehiculo));
+    }
+
+    @Transactional
+    public void eliminarVehiculo(Long id, String userEmail) {
+        User user = getUserByEmail(userEmail);
+        
+        Vehiculo vehiculo = vehiculoRepository.findByIdAndUser(id, user)
+                .orElseThrow(() -> new NotFound("Vehículo no encontrado o no pertenece a su cuenta de abonado"));
+
+        // Criterio de aceptación: Solo si no está actualmente estacionado
+        if (isVehiculoEstacionado(vehiculo.getPlaca())) {
+            throw new RegistroInvalido("No es posible eliminar el vehículo porque se encuentra estacionado dentro del parqueadero");
+        }
+
+        vehiculoRepository.delete(vehiculo);
+    }
+
+    // Método auxiliar de validación de estado en parqueadero
+    private boolean isVehiculoEstacionado(String placa) {
+        // Interconexión futura US-013+: Aquí se inyectará el RegistroEstacionamientoRepository
+        // Ejemplo lógico: return registroEstacionamientoRepository.existsByPlacaAndEstado(placa, EstadoRegistro.ACTIVO);
+        return false; 
+    }
+
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFound("Usuario no encontrado"));
+    }
+
+    private VehiculoResponseDTO convertToResponseDTO(Vehiculo vehiculo) {
         return VehiculoResponseDTO.builder()
-                .id(guardado.getId())
-                .placa(guardado.getPlaca())
-                .tipoVehiculo(guardado.getTipoVehiculo())
-                .marca(guardado.getMarca())
-                .modelo(guardado.getModelo())
-                .color(guardado.getColor())
-                .userId(user.getId())
+                .id(vehiculo.getId())
+                .placa(vehiculo.getPlaca())
+                .tipoVehiculo(vehiculo.getTipoVehiculo())
+                .marca(vehiculo.getMarca())
+                .modelo(vehiculo.getModelo())
+                .color(vehiculo.getColor())
+                .userId(vehiculo.getUser().getId())
                 .build();
     }
 }
