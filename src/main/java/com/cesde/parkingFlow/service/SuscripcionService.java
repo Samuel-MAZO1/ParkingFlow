@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.stream.Collectors;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -143,6 +146,56 @@ public class SuscripcionService {
                 .orElseThrow(() -> new NotFound("Usuario no encontrado"));
     }
 
+    @Transactional(readOnly = true)
+    public List<SuscripcionResponseDTO> listarMisSuscripciones(String userEmail) {
+        // 1. Obtener el usuario autenticado
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new NotFound("Usuario no encontrado"));
+
+        // 2. Definir el límite inferior del tiempo para suscripciones vencidas (último mes)
+        LocalDate limiteFecha = LocalDate.now().minusMonths(1);
+
+        // 3. Consultar registros filtrados desde la base de datos
+        List<Suscripcion> suscripciones = suscripcionRepository.findActivasYVencidasRecientes(user, limiteFecha);
+
+        // 4. Mapear y calcular campos dinámicos
+        return suscripciones.stream()
+                .map(this::convertToResponseDTOConCalculos)
+                .collect(Collectors.toList());
+    }
+
+    private SuscripcionResponseDTO convertToResponseDTOConCalculos(Suscripcion suscripcion) {
+        LocalDate hoy = LocalDate.now();
+        int diasRestantes = 0;
+
+        // Calcular días restantes si la suscripción está activa y no ha superado la fecha de fin
+        if (suscripcion.getEstado() == EstadoSuscripcion.ACTIVA && !hoy.isAfter(suscripcion.getFechaFin())) {
+            diasRestantes = (int) ChronoUnit.DAYS.between(hoy, suscripcion.getFechaFin());
+        }
+
+        return SuscripcionResponseDTO.builder()
+                .id(suscripcion.getId())
+                .vehiculoId(suscripcion.getVehiculo().getId())
+                .placa(suscripcion.getVehiculo().getPlaca())
+                .planId(suscripcion.getPlanAbonado().getId())
+                .nombrePlan(suscripcion.getPlanAbonado().getNombre())
+                .fechaInicio(suscripcion.getFechaInicio())
+                .fechaFin(suscripcion.getFechaFin())
+                .estado(suscripcion.getEstado())
+                .entriesUsadas(suscripcion.getEntradasUsadas())
+                .referenciaPago(suscripcion.getReferenciaPago())
+                .diasRestantes(diasRestantes)
+                .enParqueadero(isVehiculoActivoEnParqueadero(suscripcion.getVehiculo().getPlaca()))
+                .build();
+    }
+
+    // Método de verificación de ocupación real en celdas
+    private boolean isVehiculoActivoEnParqueadero(String placa) {
+        // Enlace arquitectónico con los módulos US-013 a US-017 (Registro de Estacionamiento)
+        // Lógica final: return registroEstacionamientoRepository.existsByPlacaAndEstado(placa, EstadoRegistro.ACTIVO);
+        return false;
+    }
+
     private SuscripcionResponseDTO convertToResponseDTO(Suscripcion suscripcion) {
         return SuscripcionResponseDTO.builder()
                 .id(suscripcion.getId())
@@ -153,7 +206,7 @@ public class SuscripcionService {
                 .fechaInicio(suscripcion.getFechaInicio())
                 .fechaFin(suscripcion.getFechaFin())
                 .estado(suscripcion.getEstado())
-                .entradasUsadas(suscripcion.getEntradasUsadas())
+                .entriesUsadas(suscripcion.getEntradasUsadas())
                 .referenciaPago(suscripcion.getReferenciaPago())
                 .build();
     }

@@ -12,6 +12,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/suscripciones")
 @RequiredArgsConstructor
@@ -36,5 +38,14 @@ public class SuscripcionController {
         
         SuscripcionResponseDTO response = suscripcionService.renovarSuscripcion(id, request, userDetails.getUsername());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    // --- NUECO ENDPOINT DE CONSULTA (US-011) ---
+    @GetMapping("/mis-suscripciones")
+    public ResponseEntity<List<SuscripcionResponseDTO>> listarMisSuscripciones(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        List<SuscripcionResponseDTO> response = suscripcionService.listarMisSuscripciones(userDetails.getUsername());
+        return ResponseEntity.ok(response);
     }
 }

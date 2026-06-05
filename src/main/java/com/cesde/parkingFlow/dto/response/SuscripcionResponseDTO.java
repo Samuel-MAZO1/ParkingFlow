@@ -20,6 +20,10 @@ public class SuscripcionResponseDTO {
     private LocalDate fechaInicio;
     private LocalDate fechaFin;
     private EstadoSuscripcion estado;
-    private Integer entradasUsadas;
+    private Integer entriesUsadas; // Corregido de acuerdo a la propiedad de persistencia
     private String referenciaPago;
+    
+    // --- NUEVOS CAMPOS EXIGIDOS POR LA US-011 ---
+    private Integer diasRestantes;
+    private Boolean enParqueadero;
 }
