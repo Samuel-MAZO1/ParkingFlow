@@ -1,6 +1,7 @@
 package com.cesde.parkingFlow.service;
 
 import com.cesde.parkingFlow.dto.SuscripcionRequestDTO;
+import com.cesde.parkingFlow.dto.SuscripcionRenovarRequestDTO;
 import com.cesde.parkingFlow.dto.response.SuscripcionResponseDTO;
 import com.cesde.parkingFlow.entity.PlanAbonado;
 import com.cesde.parkingFlow.entity.User;
@@ -30,20 +31,14 @@ public class SuscripcionService {
 
     @Transactional
     public SuscripcionResponseDTO adquirirSuscripcion(SuscripcionRequestDTO request, String userEmail) {
-        // 1. Obtener usuario autenticado
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new NotFound("Usuario abonado no encontrado"));
-
-        // 2. Validar existencia del vehículo
+        User user = getUserByEmail(userEmail);
         Vehiculo vehiculo = vehiculoRepository.findById(request.getVehiculoId())
                 .orElseThrow(() -> new NotFound("El vehículo especificado no existe"));
 
-        // Filtro de Seguridad: El vehículo debe estar registrado bajo la cuenta del abonado logueado
         if (!vehiculo.getUser().getId().equals(user.getId())) {
             throw new RegistroInvalido("Operación denegada: Solo puede adquirir suscripciones para sus propios vehículos");
         }
 
-        // 3. Validar existencia y disponibilidad del plan de suscripción
         PlanAbonado plan = planAbonadoRepository.findById(request.getPlanId())
                 .orElseThrow(() -> new NotFound("El plan de abonado seleccionado no existe"));
 
@@ -51,27 +46,17 @@ public class SuscripcionService {
             throw new RegistroInvalido("El plan seleccionado está desactivado por la administración");
         }
 
-        // Validación de Consistencia: No vincular planes de MOTO a CARROS o viceversa
         if (!vehiculo.getTipoVehiculo().equals(plan.getTipoVehiculo())) {
-            throw new RegistroInvalido("El tipo de vehículo (" + vehiculo.getTipoVehiculo() + 
-                    ") no corresponde con la categoría del plan (" + plan.getTipoVehiculo() + ")");
+            throw new RegistroInvalido("El tipo de vehículo no corresponde con la categoría del plan");
         }
 
-        // 4. Criterio de aceptación: Un vehículo solo puede tener una suscripción activa
         if (suscripcionRepository.existsByVehiculoAndEstado(vehiculo, EstadoSuscripcion.ACTIVA)) {
             throw new RegistroInvalido("El vehículo con placa " + vehiculo.getPlaca() + " ya posee una suscripción ACTIVA en curso");
         }
 
-        // 5. Criterio de aceptación: Fecha inicio inmediato (hoy) o fecha futura
-        LocalDate fechaInicio = request.getFechaInicio();
-        if (fechaInicio == null) {
-            fechaInicio = LocalDate.now();
-        }
-
-        // 6. Criterio de aceptación: Calcular fecha_fin (Exactamente 30 días)
+        LocalDate fechaInicio = request.getFechaInicio() != null ? request.getFechaInicio() : LocalDate.now();
         LocalDate fechaFin = fechaInicio.plusDays(30);
 
-        // 7. Construcción del registro transaccional
         Suscripcion suscripcion = Suscripcion.builder()
                 .vehiculo(vehiculo)
                 .planAbonado(plan)
@@ -82,20 +67,94 @@ public class SuscripcionService {
                 .referenciaPago(request.getReferenciaPago())
                 .build();
 
-        Suscripcion guardada = suscripcionRepository.save(suscripcion);
+        return convertToResponseDTO(suscripcionRepository.save(suscripcion));
+    }
 
-        // 8. Transformación y retorno del DTO de respuesta
+    // --- NUEVO MÉTODO PARA LA HISTORIA DE USUARIO 10 ---
+    
+    @Transactional
+    public SuscripcionResponseDTO renovarSuscripcion(Long idSuscripcionAnterior, SuscripcionRenovarRequestDTO request, String userEmail) {
+        // 1. Validar la existencia de la suscripción previa que se desea renovar
+        Suscripcion suscripcionAnterior = suscripcionRepository.findById(idSuscripcionAnterior)
+                .orElseThrow(() -> new NotFound("La suscripción anterior especificada no existe"));
+
+        // Filtro de Seguridad: Validar que la suscripción pertenezca al abonado autenticado
+        if (!suscripcionAnterior.getVehiculo().getUser().getEmail().equals(userEmail)) {
+            throw new RegistroInvalido("Operación denegada: No puede renovar una suscripción que no pertenece a sus vehículos");
+        }
+
+        // 2. Criterio de aceptación: Validar la ventana de tiempo permitida
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaFinAnterior = suscripcionAnterior.getFechaFin();
+
+        // Límite inferior: Recién vencidas (máximo 7 días atrás)
+        LocalDate limiteInferior = hoy.minusDays(7);
+        // Límite superior: Que venzan en los próximos 5 días
+        LocalDate limiteSuperior = hoy.plusDays(5);
+
+        if (fechaFinAnterior.isBefore(limiteInferior) || fechaFinAnterior.isAfter(limiteSuperior)) {
+            throw new RegistroInvalido("No es posible renovar. Solo se permiten suscripciones que venzan en los próximos 5 días o recién vencidas (máximo 7 días de retraso)");
+        }
+
+        // 3. Obtener y validar el nuevo plan solicitado (puede ser igual o diferente al anterior)
+        PlanAbonado nuevoPlan = planAbonadoRepository.findById(request.getPlanId())
+                .orElseThrow(() -> new NotFound("El plan seleccionado para la renovación no existe"));
+
+        if (nuevoPlan.getActivo() != null && !nuevoPlan.getActivo()) {
+            throw new RegistroInvalido("El plan seleccionado está desactivado por la administración");
+        }
+
+        // Validar compatibilidad de tipo de vehículo con el nuevo plan
+        Vehiculo vehiculo = suscripcionAnterior.getVehiculo();
+        if (!vehiculo.getTipoVehiculo().equals(nuevoPlan.getTipoVehiculo())) {
+            throw new RegistroInvalido("El tipo de vehículo (" + vehiculo.getTipoVehiculo() + 
+                    ") no es compatible con el nuevo plan seleccionado (" + nuevoPlan.getTipoVehiculo() + ")");
+        }
+
+        // 4. Criterio de aceptación: Nueva fecha_inicio = fecha_fin anterior + 1 día
+        LocalDate nuevaFechaInicio = fechaFinAnterior.plusDays(1);
+        
+        // Calcular fecha_fin (30 días de cobertura estándar del sistema)
+        LocalDate nuevaFechaFin = nuevaFechaInicio.plusDays(30);
+
+        // Opcional: Si la suscripción anterior seguía en estado ACTIVA, podemos dejar que termine su ciclo natural.
+        // Si estaba marcada con otro estado anterior y ya venció cronológicamente, nos aseguramos de actualizar su estado real.
+        if (fechaFinAnterior.isBefore(hoy) && suscripcionAnterior.getEstado() == EstadoSuscripcion.ACTIVA) {
+            suscripcionAnterior.setEstado(EstadoSuscripcion.VENCIDA);
+            suscripcionRepository.save(suscripcionAnterior);
+        }
+
+        // 5. Construir y registrar la nueva suscripción renovada
+        Suscripcion nuevaSuscripcion = Suscripcion.builder()
+                .vehiculo(vehiculo)
+                .planAbonado(nuevoPlan)
+                .fechaInicio(nuevaFechaInicio)
+                .fechaFin(nuevaFechaFin)
+                .estado(EstadoSuscripcion.ACTIVA) // Inicia activa o pre-aprobada consecutivamente
+                .entradasUsadas(0)
+                .referenciaPago(request.getReferenciaPago())
+                .build();
+
+        return convertToResponseDTO(suscripcionRepository.save(nuevaSuscripcion));
+    }
+
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new NotFound("Usuario no encontrado"));
+    }
+
+    private SuscripcionResponseDTO convertToResponseDTO(Suscripcion suscripcion) {
         return SuscripcionResponseDTO.builder()
-                .id(guardada.getId())
-                .vehiculoId(guardada.getVehiculo().getId())
-                .placa(guardada.getVehiculo().getPlaca())
-                .planId(guardada.getPlanAbonado().getId())
-                .nombrePlan(guardada.getPlanAbonado().getNombre())
-                .fechaInicio(guardada.getFechaInicio())
-                .fechaFin(guardada.getFechaFin())
-                .estado(guardada.getEstado())
-                .entradasUsadas(guardada.getEntradasUsadas())
-                .referenciaPago(guardada.getReferenciaPago())
+                .id(suscripcion.getId())
+                .vehiculoId(suscripcion.getVehiculo().getId())
+                .placa(suscripcion.getVehiculo().getPlaca())
+                .planId(suscripcion.getPlanAbonado().getId())
+                .nombrePlan(suscripcion.getPlanAbonado().getNombre())
+                .fechaInicio(suscripcion.getFechaInicio())
+                .fechaFin(suscripcion.getFechaFin())
+                .estado(suscripcion.getEstado())
+                .entradasUsadas(suscripcion.getEntradasUsadas())
+                .referenciaPago(suscripcion.getReferenciaPago())
                 .build();
     }
 }
