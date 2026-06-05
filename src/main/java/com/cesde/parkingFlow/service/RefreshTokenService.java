@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.cesde.parkingFlow.exception.custom.Unauthorized;
-import com.cesde.parkingFlow.dto.response.TokenResponseDto;
+import com.cesde.parkingFlow.dto.response.TokenResponseDTO;
 import com.cesde.parkingFlow.entity.RefreshToken;
 import com.cesde.parkingFlow.entity.User;
 import com.cesde.parkingFlow.repository.RefreshTokenRepository;
@@ -46,7 +46,7 @@ public String createRefreshToken(User user) {
     }
 
 @Transactional
-public TokenResponseDto verifyAndRotate(String requestToken) {
+public TokenResponseDTO verifyAndRotate(String requestToken) {
     
     RefreshToken refreshToken = refreshTokenRepository.findByToken(requestToken)
             .orElseThrow(() -> new Unauthorized("Debe ingresar un refresh token valido"));
@@ -63,6 +63,6 @@ public TokenResponseDto verifyAndRotate(String requestToken) {
     String newRefreshToken = createRefreshToken(user);
     String newAccessToken = jwtService.generateToken(user);
 
-    return new TokenResponseDto(newAccessToken, newRefreshToken);
+    return new TokenResponseDTO(newAccessToken, newRefreshToken);
 }
 }

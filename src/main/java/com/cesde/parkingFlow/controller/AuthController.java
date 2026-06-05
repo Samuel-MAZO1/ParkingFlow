@@ -1,9 +1,9 @@
 package com.cesde.parkingFlow.controller;
 
-import com.cesde.parkingFlow.dto.LoginRequestDto;
-import com.cesde.parkingFlow.dto.RefreshRequestDto;
-import com.cesde.parkingFlow.dto.RegisterRequestDto;
-import com.cesde.parkingFlow.dto.response.TokenResponseDto;
+import com.cesde.parkingFlow.dto.LoginRequestDTO;
+import com.cesde.parkingFlow.dto.RefreshRequestDTO;
+import com.cesde.parkingFlow.dto.RegisterRequestDTO;
+import com.cesde.parkingFlow.dto.response.TokenResponseDTO;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,21 +24,21 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/register")//Endpoints POST /api/v1/
-    public ResponseEntity<TokenResponseDto> register(@RequestBody RegisterRequestDto request) {
+    public ResponseEntity<TokenResponseDTO> register(@RequestBody RegisterRequestDTO request) {
         return ResponseEntity.ok(authService.register(request));
     }
 
 
     //Llama al servicio para autenticar usuario y devuelve un token
     @PostMapping("/login")//Endpoint POST /api/v1/auth/login
-    public ResponseEntity<TokenResponseDto> login(@RequestBody LoginRequestDto request) {
+    public ResponseEntity<TokenResponseDTO> login(@RequestBody LoginRequestDTO request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
     //Recibe refreshToken y devuelve un nuevo accessToken
     @PostMapping("/refresh")//Endpoint POST /api/v1/auth/refresh
-    public ResponseEntity<TokenResponseDto> refresh(@RequestBody RefreshRequestDto refresh) {
-    	TokenResponseDto response = refreshTokenService.verifyAndRotate(refresh.getRefreshToken());
+    public ResponseEntity<TokenResponseDTO> refresh(@RequestBody RefreshRequestDTO refresh) {
+    	TokenResponseDTO response = refreshTokenService.verifyAndRotate(refresh.getRefreshToken());
         return ResponseEntity.ok(response);
     }
 }

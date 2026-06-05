@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class RefreshRequestDto {
+public class RefreshRequestDTO {
     //Refresh token valido que el cliente envia para obtener un nuevo access token
     private String refreshToken;
 }

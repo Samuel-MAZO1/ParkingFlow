@@ -7,8 +7,9 @@ import lombok.NoArgsConstructor;
 //Registrar nuevo usuario
 @NoArgsConstructor
 @Data
-public class RegisterRequestDto {
+public class RegisterRequestDTO {
     private String name;
+    private String lastName;
     private String email;
     private String password;
     private String document;

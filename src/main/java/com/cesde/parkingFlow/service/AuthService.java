@@ -1,8 +1,8 @@
 package com.cesde.parkingFlow.service;
 
-import com.cesde.parkingFlow.dto.LoginRequestDto;
-import com.cesde.parkingFlow.dto.RegisterRequestDto;
-import com.cesde.parkingFlow.dto.response.TokenResponseDto;
+import com.cesde.parkingFlow.dto.LoginRequestDTO;
+import com.cesde.parkingFlow.dto.RegisterRequestDTO;
+import com.cesde.parkingFlow.dto.response.TokenResponseDTO;
 import com.cesde.parkingFlow.entity.User;
 import com.cesde.parkingFlow.enums.Rol;
 import com.cesde.parkingFlow.exception.custom.*;
@@ -23,7 +23,7 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
 
     //Registra un nuevo usuario en el sistema
-    public TokenResponseDto register(RegisterRequestDto request) {
+    public TokenResponseDTO register(RegisterRequestDTO request) {
         if (usuarioRepository.existsByEmail(request.getEmail())) {
             throw new RegistroInvalido("Email ya registrado");
         }
@@ -42,21 +42,21 @@ public class AuthService {
                 .document(request.getDocument())
                 .phone(request.getPhone())
                 .name(request.getName())
-                .lastName(request.getLastName())
+                .lastName(request.getLastName()) 
                 .rol(Rol.ABONADO) // rol por defecto
                 .activo(true)
                 .build();
 
         usuarioRepository.save(user);
 
-        return new TokenResponseDto(
+        return new TokenResponseDTO(
                 jwtService.generateToken(user),
                 jwtService.generateRefreshToken(user)
         );
     }
 
     //Inicia sesion y devuelve tokens
-    public TokenResponseDto login(LoginRequestDto request) {
+    public TokenResponseDTO login(LoginRequestDTO request) {
         User user = findByEmail(request.getEmail());
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -65,7 +65,7 @@ public class AuthService {
 
         String refreshToken = refreshTokenService.createRefreshToken(user);
         
-        return new TokenResponseDto(
+        return new TokenResponseDTO(
                 jwtService.generateToken(user),
                 refreshToken 
         );
