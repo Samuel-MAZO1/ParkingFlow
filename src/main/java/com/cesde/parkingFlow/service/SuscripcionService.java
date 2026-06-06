@@ -1,6 +1,7 @@
 package com.cesde.parkingFlow.service;
 
 import com.cesde.parkingFlow.dto.SuscripcionRequestDTO;
+import com.cesde.parkingFlow.dto.SuscripcionCancelarRequestDTO;
 import com.cesde.parkingFlow.dto.SuscripcionRenovarRequestDTO;
 import com.cesde.parkingFlow.dto.response.SuscripcionResponseDTO;
 import com.cesde.parkingFlow.entity.PlanAbonado;
@@ -164,31 +165,6 @@ public class SuscripcionService {
                 .collect(Collectors.toList());
     }
 
-    private SuscripcionResponseDTO convertToResponseDTOConCalculos(Suscripcion suscripcion) {
-        LocalDate hoy = LocalDate.now();
-        int diasRestantes = 0;
-
-        // Calcular días restantes si la suscripción está activa y no ha superado la fecha de fin
-        if (suscripcion.getEstado() == EstadoSuscripcion.ACTIVA && !hoy.isAfter(suscripcion.getFechaFin())) {
-            diasRestantes = (int) ChronoUnit.DAYS.between(hoy, suscripcion.getFechaFin());
-        }
-
-        return SuscripcionResponseDTO.builder()
-                .id(suscripcion.getId())
-                .vehiculoId(suscripcion.getVehiculo().getId())
-                .placa(suscripcion.getVehiculo().getPlaca())
-                .planId(suscripcion.getPlanAbonado().getId())
-                .nombrePlan(suscripcion.getPlanAbonado().getNombre())
-                .fechaInicio(suscripcion.getFechaInicio())
-                .fechaFin(suscripcion.getFechaFin())
-                .estado(suscripcion.getEstado())
-                .entriesUsadas(suscripcion.getEntradasUsadas())
-                .referenciaPago(suscripcion.getReferenciaPago())
-                .diasRestantes(diasRestantes)
-                .enParqueadero(isVehiculoActivoEnParqueadero(suscripcion.getVehiculo().getPlaca()))
-                .build();
-    }
-
     // Método de verificación de ocupación real en celdas
     private boolean isVehiculoActivoEnParqueadero(String placa) {
         // Enlace arquitectónico con los módulos US-013 a US-017 (Registro de Estacionamiento)
@@ -208,6 +184,53 @@ public class SuscripcionService {
                 .estado(suscripcion.getEstado())
                 .entriesUsadas(suscripcion.getEntradasUsadas())
                 .referenciaPago(suscripcion.getReferenciaPago())
+                .build();
+    }
+
+    // --- NUEVO MÉTODO PARA LA HISTORIA DE USUARIO 12 ---
+    
+    @Transactional
+    public SuscripcionResponseDTO cancelarSuscripcion(Long id, SuscripcionCancelarRequestDTO request) {
+        // 1. Validar la existencia de la suscripción
+        Suscripcion suscripcion = suscripcionRepository.findById(id)
+                .orElseThrow(() -> new NotFound("La suscripción solicitada no existe"));
+
+        // 2. Validar que la suscripción no se encuentre ya en estado CANCELADA
+        if (suscripcion.getEstado() == EstadoSuscripcion.CANCELADA) {
+            throw new RegistroInvalido("La suscripción ya se encuentra CANCELADA en el sistema");
+        }
+
+        // 3. Aplicar los criterios de aceptación: Cambiar estado y registrar motivo
+        suscripcion.setEstado(EstadoSuscripcion.CANCELADA);
+        suscripcion.setMotivoCancelacion(request.getMotivo());
+
+        // 4. Guardar y retornar la respuesta mapeada
+        Suscripcion guardada = suscripcionRepository.save(suscripcion);
+        return convertToResponseDTOConCalculos(guardada);
+    }
+
+    private SuscripcionResponseDTO convertToResponseDTOConCalculos(Suscripcion suscripcion) {
+        LocalDate hoy = LocalDate.now();
+        int diasRestantes = 0;
+
+        if (suscripcion.getEstado() == EstadoSuscripcion.ACTIVA && !hoy.isAfter(suscripcion.getFechaFin())) {
+            diasRestantes = (int) ChronoUnit.DAYS.between(hoy, suscripcion.getFechaFin());
+        }
+
+        return SuscripcionResponseDTO.builder()
+                .id(suscripcion.getId())
+                .vehiculoId(suscripcion.getVehiculo().getId())
+                .placa(suscripcion.getVehiculo().getPlaca())
+                .planId(suscripcion.getPlanAbonado().getId())
+                .nombrePlan(suscripcion.getPlanAbonado().getNombre())
+                .fechaInicio(suscripcion.getFechaInicio())
+                .fechaFin(suscripcion.getFechaFin())
+                .estado(suscripcion.getEstado())
+                .entriesUsadas(suscripcion.getEntradasUsadas())
+                .referenciaPago(suscripcion.getReferenciaPago())
+                .diasRestantes(diasRestantes)
+                .enParqueadero(false) // Mapeo de control temporal
+                .motivoCancelacion(suscripcion.getMotivoCancelacion())
                 .build();
     }
 }

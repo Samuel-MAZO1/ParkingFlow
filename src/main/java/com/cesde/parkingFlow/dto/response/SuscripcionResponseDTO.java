@@ -26,4 +26,7 @@ public class SuscripcionResponseDTO {
     // --- NUEVOS CAMPOS EXIGIDOS POR LA US-011 ---
     private Integer diasRestantes;
     private Boolean enParqueadero;
+
+    // --- NUEVO CAMPO DE RETORNO ---
+    private String motivoCancelacion;
 }

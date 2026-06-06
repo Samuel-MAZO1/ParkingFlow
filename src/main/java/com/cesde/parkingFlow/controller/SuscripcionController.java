@@ -1,6 +1,7 @@
 package com.cesde.parkingFlow.controller;
 
 import com.cesde.parkingFlow.dto.SuscripcionRequestDTO;
+import com.cesde.parkingFlow.dto.SuscripcionCancelarRequestDTO;
 import com.cesde.parkingFlow.dto.SuscripcionRenovarRequestDTO;
 import com.cesde.parkingFlow.dto.response.SuscripcionResponseDTO;
 import com.cesde.parkingFlow.service.SuscripcionService;
@@ -8,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -46,6 +48,18 @@ public class SuscripcionController {
             @AuthenticationPrincipal UserDetails userDetails) {
         
         List<SuscripcionResponseDTO> response = suscripcionService.listarMisSuscripciones(userDetails.getUsername());
+        return ResponseEntity.ok(response);
+    }
+
+    // --- NUEVO ENDPOINT ADMINISTRATIVO (US-012) ---
+    
+    @PutMapping("/admin/{id}/cancelar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SuscripcionResponseDTO> cancelarSuscripcion(
+            @PathVariable Long id,
+            @Valid @RequestBody SuscripcionCancelarRequestDTO request) {
+        
+        SuscripcionResponseDTO response = suscripcionService.cancelarSuscripcion(id, request);
         return ResponseEntity.ok(response);
     }
 }

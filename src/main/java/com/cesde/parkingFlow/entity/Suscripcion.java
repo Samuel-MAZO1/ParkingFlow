@@ -41,4 +41,8 @@ public class Suscripcion {
 
     @Column(nullable = false)
     private String referenciaPago;
+
+    // --- NUEVO CAMPO PARA LA HISTORIA DE USUARIO 12 ---
+    @Column(name = "motivo_cancelacion")
+    private String motivoCancelacion;
 }
