@@ -19,7 +19,8 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "configuracion_capacidad")
-@Getter @Setter
+@Getter
+@Setter
 @NoArgsConstructor
 public class ConfiguracionCapacidad {
 

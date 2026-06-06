@@ -17,4 +17,7 @@ public interface VehiculoRepository extends JpaRepository<Vehiculo, Long> {
     
     // Busca un vehículo específico asegurando la propiedad del mismo
     Optional<Vehiculo> findByIdAndUser(Long id, User user);
+
+    // --- NUEVO MÉTODO PARA LA US-014 ---
+    Optional<Vehiculo> findByPlaca(String placa);
 }
